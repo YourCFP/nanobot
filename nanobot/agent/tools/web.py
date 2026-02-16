@@ -44,7 +44,7 @@ def _validate_url(url: str) -> tuple[bool, str]:
 
 
 class WebSearchTool(Tool):
-    """Search the web using Brave Search API."""
+    """Search the web using Brave Search or SearXNG."""
     
     name = "web_search"
     description = "Search the web. Returns titles, URLs, and snippets."
@@ -57,20 +57,31 @@ class WebSearchTool(Tool):
         "required": ["query"]
     }
     
-    def __init__(self, api_key: str | None = None, max_results: int = 5):
+    def __init__(self, provider: str = "brave", api_key: str | None = None, 
+                 base_url: str | None = None, max_results: int = 5):
+        self.provider = provider.lower()
         self.api_key = api_key or os.environ.get("BRAVE_API_KEY", "")
+        self.base_url = base_url or os.environ.get("SEARXNG_URL", "")
         self.max_results = max_results
     
     async def execute(self, query: str, count: int | None = None, **kwargs: Any) -> str:
+        n = min(max(count or self.max_results, 1), 10)
+        
+        if self.provider == "searxng":
+            return await self._search_searxng(query, n)
+        else:  # Default to brave
+            return await self._search_brave(query, n)
+    
+    async def _search_brave(self, query: str, count: int) -> str:
+        """Search using Brave Search API."""
         if not self.api_key:
             return "Error: BRAVE_API_KEY not configured"
         
         try:
-            n = min(max(count or self.max_results, 1), 10)
             async with httpx.AsyncClient() as client:
                 r = await client.get(
                     "https://api.search.brave.com/res/v1/web/search",
-                    params={"q": query, "count": n},
+                    params={"q": query, "count": count},
                     headers={"Accept": "application/json", "X-Subscription-Token": self.api_key},
                     timeout=10.0
                 )
@@ -81,10 +92,38 @@ class WebSearchTool(Tool):
                 return f"No results for: {query}"
             
             lines = [f"Results for: {query}\n"]
-            for i, item in enumerate(results[:n], 1):
+            for i, item in enumerate(results[:count], 1):
                 lines.append(f"{i}. {item.get('title', '')}\n   {item.get('url', '')}")
                 if desc := item.get("description"):
                     lines.append(f"   {desc}")
+            return "\n".join(lines)
+        except Exception as e:
+            return f"Error: {e}"
+    
+    async def _search_searxng(self, query: str, count: int) -> str:
+        """Search using SearXNG instance."""
+        if not self.base_url:
+            return "Error: SearXNG base_url not configured"
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get(
+                    f"{self.base_url.rstrip('/')}/search",
+                    params={"q": query, "format": "json", "pageno": 1},
+                    timeout=10.0
+                )
+                r.raise_for_status()
+            
+            data = r.json()
+            results = data.get("results", [])
+            if not results:
+                return f"No results for: {query}"
+            
+            lines = [f"Results for: {query}\n"]
+            for i, item in enumerate(results[:count], 1):
+                lines.append(f"{i}. {item.get('title', '')}\n   {item.get('url', '')}")
+                if content := item.get("content"):
+                    lines.append(f"   {content}")
             return "\n".join(lines)
         except Exception as e:
             return f"Error: {e}"

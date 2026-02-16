@@ -202,7 +202,9 @@ class GatewayConfig(BaseModel):
 
 class WebSearchConfig(BaseModel):
     """Web search tool configuration."""
-    api_key: str = ""  # Brave Search API key
+    provider: str = "brave"  # "brave" or "searxng"
+    api_key: str = ""  # Brave Search API key (not needed for searxng)
+    base_url: str = ""  # SearXNG instance URL (e.g. http://localhost:8888)
     max_results: int = 5
 
 

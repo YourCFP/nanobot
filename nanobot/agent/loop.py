@@ -48,6 +48,9 @@ class AgentLoop:
         max_tokens: int = 4096,
         memory_window: int = 50,
         brave_api_key: str | None = None,
+        search_provider: str = "brave",
+        searxng_url: str = "",
+        search_max_results: int = 5,
         exec_config: "ExecToolConfig | None" = None,
         cron_service: "CronService | None" = None,
         restrict_to_workspace: bool = False,
@@ -65,6 +68,9 @@ class AgentLoop:
         self.max_tokens = max_tokens
         self.memory_window = memory_window
         self.brave_api_key = brave_api_key
+        self.search_provider = search_provider
+        self.searxng_url = searxng_url
+        self.search_max_results = search_max_results
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
@@ -107,7 +113,7 @@ class AgentLoop:
         ))
         
         # Web tools
-        self.tools.register(WebSearchTool(api_key=self.brave_api_key))
+        self.tools.register(WebSearchTool(provider=self.search_provider,api_key=self.brave_api_key,base_url=self.searxng_url,max_results=self.search_max_results))
         self.tools.register(WebFetchTool())
         
         # Message tool
